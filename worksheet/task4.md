@@ -37,28 +37,30 @@ C4Container
     title CampusEats - Hybrid Owner Alert System
 
     Person(customer, "Customer", "Writes restaurant reviews")
-    Person(owner, "Restaurant Owner", "Receives negative-review push alerts")
+    Person(owner, "Restaurant Owner", "Receives negative-review alerts")
 
     System_Boundary(campuseats, "CampusEats") {
-        Container(review, "Review Service", "Python, FastAPI + embedded small model", "Receives reviews, runs the small model in-process, decides cascade/confirmation, enforces 1 s timeout")
-        ContainerDb(db, "Review Database", "Database", "Stores reviews and labels; holds pending reviews")
-        Container(cache, "Prediction Cache", "Cache", "Reuses predictions for repeated review text; keys include model version")
-        Container(limiter, "Large-Model Rate Limiter", "Token bucket", "Caps large-model calls at 18/s; confirmations first, overflow escalations become pending")
-        Container(pendingWorker, "Pending Scorer", "Background worker", "Scores pending reviews later, off-peak, through the limiter")
-        Container(alert, "Alert Service", "Push notification service", "Sends confirmed negative-review alerts")
+        Container(cache, "Prediction Cache", "Cache", "Repeated texts; keys include model version")
+        Container(review, "Review Service", "Python, FastAPI + embedded small model", "Runs small model, decides cascade/confirmation, 1 s timeout")
+        Container(limiter, "Large-Model Rate Limiter", "Token bucket", "Max 18 calls/s; confirmations first")
+        Container(alert, "Alert Service", "Push notifications", "Sends confirmed negative alerts")
+        ContainerDb(db, "Review Database", "Database", "Reviews, labels, pending reviews")
+        Container(pendingWorker, "Pending Scorer", "Background worker", "Scores pending reviews off-peak")
     }
 
     System_Ext(large, "Large Model Service", "Remote ML service, max 20 calls/s")
 
-    Rel(customer, review, "Posts a review", "HTTP/JSON")
-    Rel(review, db, "Stores review, label, or pending status")
-    Rel(review, cache, "Looks up / stores versioned prediction")
-    Rel(review, limiter, "Requests escalation or confirmation")
-    Rel(limiter, large, "Forwards at most 18 calls/s")
-    Rel(pendingWorker, db, "Reads pending reviews, writes labels")
-    Rel(pendingWorker, limiter, "Requests scoring when capacity is free")
-    Rel(review, alert, "Sends confirmed negative result")
-    Rel(alert, owner, "Sends push notification")
+    Rel(customer, review, "Posts review", "HTTP/JSON")
+    Rel(review, cache, "Cache lookup")
+    Rel(review, limiter, "Escalate / confirm")
+    Rel(review, db, "Store review")
+    Rel(review, alert, "Confirmed negative")
+    Rel(alert, owner, "Push alert")
+    Rel(limiter, large, "≤ 18 calls/s")
+    Rel(pendingWorker, db, "Read pending, write labels")
+    Rel(pendingWorker, limiter, "Score when free")
+
+    UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
 ```
 
 ## 3. Evidence
